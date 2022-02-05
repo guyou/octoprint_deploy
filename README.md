@@ -1,3 +1,4 @@
+DEPRECATED
 Updated July, 2021.  
 Want to support this work? Buy Me a Coffee. https://www.buymeacoffee.com/ppaukstelis
 # octoprint_deploy
