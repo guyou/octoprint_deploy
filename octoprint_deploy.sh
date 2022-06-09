@@ -311,7 +311,6 @@ new_instance () {
             fi
             
             echo "#$INSTANCE stop" >> /etc/haproxy/haproxy.cfg
-            
             #restart haproxy
             sudo systemctl restart haproxy.service
             
@@ -350,11 +349,6 @@ write_camera() {
     
     mv $SCRIPTDIR/cam_$INSTANCE.service /etc/systemd/system/
     echo $CAMPORT >> /etc/camera_ports
-    #config.yaml modifications
-    echo "webcam:" >> $OCTOCONFIG/.$INSTANCE/config.yaml
-    echo "    snapshot: http://$(hostname).local:$CAMPORT?action=snapshot" >> $OCTOCONFIG/.$INSTANCE/config.yaml
-    echo "    stream: http://$(hostname).local:$CAMPORT?action=stream" >> $OCTOCONFIG/.$INSTANCE/config.yaml
-    echo
     
     #Either Serial number or USB port
     #Serial Number
@@ -366,7 +360,31 @@ write_camera() {
     if [ -n "$USBCAM" ]; then
         echo SUBSYSTEM==\"video4linux\",KERNELS==\"$USBCAM\",SUBSYSTEMS==\"usb\",ATTR{index}==\"0\",DRIVERS==\"uvcvideo\",SYMLINK+=\"cam_$INSTANCE\" >> /etc/udev/rules.d/99-octoprint.rules
     fi
-    
+
+    if [ "$HAPROXY" == true ]; then
+        HAversion=$(haproxy -v | sed -n 's/^.*version \([0-9]\).*/\1/p')
+        sed -i "/option forwardfor except 127.0.0.1/a\        use_backend cam_$INSTANCE if { path_beg /cam_$INSTANCE/ }" /etc/haproxy/haproxy.cfg
+        echo "#cam_$INSTANCE start" >> /etc/haproxy/haproxy.cfg
+        echo "backend cam_$INSTANCE" >> /etc/haproxy/haproxy.cfg
+        if [ $HAversion -gt 1 ]; then
+            echo "       http-request replace-path /cam_$INSTANCE/(.*) /\1" >> /etc/haproxy/haproxy.cfg
+        else
+            echo "       reqrep ^([^\ :]*)\ /cam_$INSTANCE/(.*) \1\ /\2" >> /etc/haproxy/haproxy.cfg
+        fi
+        echo "       server webcam1 127.0.0.1:$CAMPORT" >> /etc/haproxy/haproxy.cfg
+        echo "#cam_$INSTANCE stop" >> /etc/haproxy/haproxy.cfg
+        #config.yaml modifications
+        echo "webcam:" >> $OCTOCONFIG/.$INSTANCE/config.yaml
+        echo "    snapshot: http://$(hostname).local/cam_$INSTANCE?action=snapshot" >> $OCTOCONFIG/.$INSTANCE/config.yaml
+        echo "    stream: http://$(hostname).local/cam_$INSTANCE?action=stream" >> $OCTOCONFIG/.$INSTANCE/config.yaml
+        echo
+    else
+        #config.yaml modifications
+        echo "webcam:" >> $OCTOCONFIG/.$INSTANCE/config.yaml
+        echo "    snapshot: http://$(hostname).local:$CAMPORT?action=snapshot" >> $OCTOCONFIG/.$INSTANCE/config.yaml
+        echo "    stream: http://$(hostname).local:$CAMPORT?action=stream" >> $OCTOCONFIG/.$INSTANCE/config.yaml
+        echo
+    fi
 }
 
 add_camera() {
@@ -461,6 +479,7 @@ add_camera() {
 
 remove_instance() {
     if [ $SUDO_USER ]; then user=$SUDO_USER; fi
+    get_settings
     if [ -f "/etc/octoprint_instances"]; then
         echo 'Do not remove the generic instance!' | log
         PS3='Select instance to remove: '
@@ -496,6 +515,8 @@ remove_instance() {
             if [ -f /etc/haproxy/haproxy.cfg ]; then
                 sed -i "/use_backend $opt/d" /etc/haproxy/haproxy.cfg
                 sed -i "/#$opt start/,/#$opt stop/d" /etc/haproxy/haproxy.cfg
+                sed -i "/use_backend cam_$opt/d" /etc/haproxy/haproxy.cfg
+                sed -i "/#cam_$opt start/,/#cam_$opt stop/d" /etc/haproxy/haproxy.cfg
                 systemctl restart haproxy.service
             fi
         fi
@@ -836,6 +857,8 @@ remove_everything() {
             if [ -f /etc/haproxy/haproxy.cfg ]; then
                 sed -i "/use_backend $instance/d" /etc/haproxy/haproxy.cfg
                 sed -i "/#$instance start/,/#$instance stop/d" /etc/haproxy/haproxy.cfg
+                sed -i "/use_backend cam_$instance/d" /etc/haproxy/haproxy.cfg
+                sed -i "/#cam_$instance start/,/#cam_$instance stop/d" /etc/haproxy/haproxy.cfg
             fi
         done
         echo "Removing system stuff"
