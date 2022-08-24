@@ -338,20 +338,22 @@ write_camera() {
     
     mv $SCRIPTDIR/cam_$INSTANCE.service /etc/systemd/system/
     echo $CAMPORT >> /etc/camera_ports
-    #config.yaml modifications
-    echo "webcam:" >> $OCTOCONFIG/.$INSTANCE/config.yaml
-    echo "    snapshot: http://$(hostname).local:$CAMPORT?action=snapshot" >> $OCTOCONFIG/.$INSTANCE/config.yaml
-    echo "    stream: http://$(hostname).local:$CAMPORT?action=stream" >> $OCTOCONFIG/.$INSTANCE/config.yaml
-    $OCTOEXEC --basedir $OCTOCONFIG/.$INSTANCE config append_value --json system.actions "{\"action\": \"Reset video streamer\", \"command\": \"sudo systemctl restart cam_$INSTANCE\", \"name\": \"Restart webcam\"}"
+    #config.yaml modifications - only do this if INUM is not set
+    if [ -z "$INUM" ]; then
+        echo "webcam:" >> $OCTOCONFIG/.$INSTANCE/config.yaml
+        echo "    snapshot: http://$(hostname).local:$CAMPORT?action=snapshot" >> $OCTOCONFIG/.$INSTANCE/config.yaml
+        echo "    stream: http://$(hostname).local:$CAMPORT?action=stream" >> $OCTOCONFIG/.$INSTANCE/config.yaml
+        $OCTOEXEC --basedir $OCTOCONFIG/.$INSTANCE config append_value --json system.actions "{\"action\": \"Reset video streamer\", \"command\": \"sudo systemctl restart cam_$INSTANCE\", \"name\": \"Restart webcam\"}"
+    fi
     #Either Serial number or USB port
     #Serial Number
     if [ -n "$CAM" ]; then
-        echo SUBSYSTEM==\"video4linux\", ATTRS{serial}==\"$CAM\", ATTR{index}==\"0\", SYMLINK+=\"cam_$INSTANCE\" >> /etc/udev/rules.d/99-octoprint.rules
+        echo SUBSYSTEM==\"video4linux\", ATTRS{serial}==\"$CAM\", ATTR{index}==\"0\", SYMLINK+=\"cam${INUM}_$INSTANCE\" >> /etc/udev/rules.d/99-octoprint.rules
     fi
     
     #USB port camera
     if [ -n "$USBCAM" ]; then
-        echo SUBSYSTEM==\"video4linux\",KERNELS==\"$USBCAM\", SUBSYSTEMS==\"usb\", ATTR{index}==\"0\", DRIVERS==\"uvcvideo\", SYMLINK+=\"cam_$INSTANCE\" >> /etc/udev/rules.d/99-octoprint.rules
+        echo SUBSYSTEM==\"video4linux\",KERNELS==\"$USBCAM\", SUBSYSTEMS==\"usb\", ATTR{index}==\"0\", DRIVERS==\"uvcvideo\", SYMLINK+=\"cam${INUM}_$INSTANCE\" >> /etc/udev/rules.d/99-octoprint.rules
     fi
     
 }
@@ -360,6 +362,7 @@ add_camera() {
     
     if [ $SUDO_USER ]; then user=$SUDO_USER; fi
     echo 'Adding camera' | log
+    INUM=''
     if [ -z "$INSTANCE" ]; then
         PS3='Select instance number to add camera to: '
         readarray -t options < <(cat /etc/octoprint_instances | sed -n -e 's/^instance:\([[:graph:]]*\) .*/\1/p')
@@ -372,6 +375,24 @@ add_camera() {
                 main_menu
             fi
             echo "Selected instance for camera: $camopt" | log
+            #check if instance already has a camera
+            if grep -q "cam_$INSTANCE" /etc/udev/rules.d/99-octoprint.rules; then
+                echo "It appears this instance already has at least one camera."
+                if prompt_confirm "Do you want to add an additional camera for this instance?"; then
+                    echo "Enter a number for this camera."
+                    echo "Ex. entering 2 will setup a service called cam2_$INSTANCE"
+                    echo
+                    read INUM
+                    if [ -z "$INUM" ]; then
+                        echo "No value given, setting as 2"
+                        INUM='2'
+                    fi
+                else
+                    main_menu
+                fi
+                
+                
+            fi
             INSTANCE=$camopt
             OCTOCONFIG="/home/$user/"
             OCTOUSER=$user
@@ -496,11 +517,12 @@ remove_instance() {
                 rm /etc/systemd/system/$opt.service
             fi
             
+            #need better cleanup here for multiple cams
             if [ -f /etc/systemd/system/cam_$opt.service ]; then
                 systemctl stop cam_$opt.service
                 systemctl disable cam_$opt.service
                 rm /etc/systemd/system/cam_$opt.service
-                sed -i "/cam_$opt/d" /etc/udev/rules.d/99-octoprint.rules
+                sed -i "/cam.*_$opt/d" /etc/udev/rules.d/99-octoprint.rules
             fi
             #remove udev entry
             sed -i "/$opt/d" /etc/udev/rules.d/99-octoprint.rules
@@ -663,7 +685,7 @@ prepare () {
             echo 'Disabling unneeded services....'
             systemctl disable octoprint.service
             systemctl disable webcamd.service
-            systemctl stop webcamd.service 
+            systemctl stop webcamd.service
             systemctl disable streamer_select.service
             systemctl stop streamer_select.service
             echo 'Installing needed packages'
@@ -673,7 +695,10 @@ prepare () {
             echo "$user ALL=NOPASSWD: /usr/sbin/reboot" > /etc/sudoers.d/octoprint_reboot
             echo 'haproxy: true' >> /etc/octoprint_deploy
             echo 'Modifying config.yaml'
+            #stop service before modifying
+            systemctl stop octoprint.service
             cp -p $SCRIPTDIR/config.basic /home/pi/.octoprint/config.yaml
+            systemctl start octoprint.service
             firstrun
             echo 'Connect to your octoprint (octopi.local) instance and setup admin user if you have not already'
             echo 'type: octopi' >> /etc/octoprint_deploy
@@ -1146,7 +1171,7 @@ source $SCRIPTDIR/plugins.sh
 # gather info and write /etc/octoprint_deploy if missing
 if [ ! -f /etc/octoprint_deploy ] && [ -f /etc/octoprint_instances ]; then
     echo "/etc/octoprint_deploy is missing. You may have prepared the system with an older vesion."
-    echo "The file will be created now."  
+    echo "The file will be created now."
     streamer_type=("mjpg-streamer" "ustreamer")
     haproxy_bool=("true" "false")
     if [ -f /etc/octopi_version ]; then
@@ -1165,8 +1190,8 @@ if [ ! -f /etc/octoprint_deploy ] && [ -f /etc/octoprint_instances ]; then
         echo "haproxy: $prox" >> /etc/octoprint_deploy
         break
     done
-
-fi   
+    
+fi
 
 #command line arguments
 if [ "$1" == remove ]; then
