@@ -697,7 +697,7 @@ prepare () {
             echo 'Modifying config.yaml'
             #stop service before modifying
             systemctl stop octoprint.service
-            cp -p $SCRIPTDIR/config.basic /home/pi/.octoprint/config.yaml
+            cp -p $SCRIPTDIR/config.basic /home/$user/.octoprint/config.yaml
             systemctl start octoprint.service
             firstrun
             echo 'Connect to your octoprint (octopi.local) instance and setup admin user if you have not already'
