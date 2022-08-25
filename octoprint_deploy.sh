@@ -323,7 +323,7 @@ write_camera() {
         -e "s/OCTOCAM/cam_$INSTANCE/" \
         -e "s/RESOLUTION/$RESOLUTION/" \
         -e "s/FRAMERATE/$FRAMERATE/" \
-        -e "s/CAMPORT/$CAMPORT/" > $SCRIPTDIR/cam_$INSTANCE.service
+        -e "s/CAMPORT/$CAMPORT/" > $SCRIPTDIR/cam${INUM}_$INSTANCE.service
     fi
     
     #ustreamer
@@ -333,7 +333,7 @@ write_camera() {
         -e "s/OCTOCAM/cam_$INSTANCE/" \
         -e "s/RESOLUTION/$RESOLUTION/" \
         -e "s/FRAMERATE/$FRAMERATE/" \
-        -e "s/CAMPORT/$CAMPORT/" > $SCRIPTDIR/cam_$INSTANCE.service
+        -e "s/CAMPORT/$CAMPORT/" > $SCRIPTDIR/cam${INUM}_$INSTANCE.service
     fi
     
     mv $SCRIPTDIR/cam${INUM}_$INSTANCE.service /etc/systemd/system/
