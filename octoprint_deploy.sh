@@ -380,9 +380,10 @@ add_camera() {
                 echo "It appears this instance already has at least one camera."
                 if prompt_confirm "Do you want to add an additional camera for this instance?"; then
                     echo "Enter a number for this camera."
-                    echo "Ex. entering 2 will setup a service called cam2_$INSTANCE"
+                    echo "Ex. entering 2 will setup a service called cam2_$camopt"
                     echo
                     read INUM
+                    echo $INUM
                     if [ -z "$INUM" ]; then
                         echo "No value given, setting as 2"
                         INUM='2'
@@ -438,7 +439,7 @@ add_camera() {
         CAMPORT=$((CAMPORT+1))
         echo Selected port is: $CAMPORT | log
     fi
-    echo "Settings can be modified after initial setup in /etc/systemd/system/cam_$INSTANCE"
+    echo "Settings can be modified after initial setup in /etc/systemd/system/cam${INUM}_$INSTANCE"
     echo
     while true; do
         echo "Camera Resolution [default: 640x480]:"
