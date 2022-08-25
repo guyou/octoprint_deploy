@@ -336,7 +336,7 @@ write_camera() {
         -e "s/CAMPORT/$CAMPORT/" > $SCRIPTDIR/cam_$INSTANCE.service
     fi
     
-    mv $SCRIPTDIR/cam_$INSTANCE.service /etc/systemd/system/
+    mv $SCRIPTDIR/cam${INUM}_$INSTANCE.service /etc/systemd/system/
     echo $CAMPORT >> /etc/camera_ports
     #config.yaml modifications - only do this if INUM is not set
     if [ -z "$INUM" ]; then
