@@ -383,7 +383,7 @@ add_camera() {
                     echo "Ex. entering 2 will setup a service called cam2_$camopt"
                     echo
                     read INUM
-                    echo $INUM
+                    
                     if [ -z "$INUM" ]; then
                         echo "No value given, setting as 2"
                         INUM='2'
